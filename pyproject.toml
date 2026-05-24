@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dqbench"
+version = "0.1.0"
+description = "Parameterized benchmark suite for quantum circuit simulation, built on DeepQuantum"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+authors = [{name = "Shukai Zhao"}]
+keywords = ["quantum-computing", "benchmark", "qaoa", "vqe", "pytorch", "deepquantum"]
+dependencies = [
+    "torch>=2.0",
+    "deepquantum>=4.5.0",
+    "numpy",
+    "scipy",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "jupyter", "matplotlib", "tqdm"]
+
+[project.urls]
+Homepage = "https://github.com/KlamentZ/dqbench"
+Issues = "https://github.com/KlamentZ/dqbench/issues"
+
+[tool.setuptools.packages.find]
+include = ["dqbench*"]
