@@ -10,3 +10,7 @@ build/
 dist/
 .pytest_cache/
 .coverage
+
+# Personal Claude Code context (not shared)
+CLAUDE.local.md
+.claude/
