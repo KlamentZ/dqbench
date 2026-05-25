@@ -48,6 +48,8 @@ class QAOAInstance:
             f"classical_max_cut={self.classical_max_cut}, "
             f"seed={self.seed})"
         )
+
+
 def _compute_max_cut_brute_force(graph: list[tuple[int, int]], n_qubits: int) -> int:
     """Compute the maximum cut value by brute-force enumeration.
 
@@ -166,3 +168,82 @@ def build_qaoa_circuit(
         cir.observable(wires=[u, v], basis='z')
 
     return cir
+
+
+def generate(
+    n_qubits: list[int],
+    p_layers: list[int],
+    graph_type: str,
+    graph_params: dict[str, Any],
+    n_seeds: int,
+    seed: int,
+) -> list[QAOAInstance]:
+    """Generate a sweep of QAOA Max-Cut benchmark instances.
+
+    Iterates the cross-product ``n_qubits × p_layers × range(n_seeds)`` and
+    builds one ``QAOAInstance`` per combination. Iteration order is
+    ``n_qubits`` (outer) → ``p_layers`` → seed index (inner), so the returned
+    list groups first by problem size, then by ansatz depth, then by seed.
+
+    Per-instance seeds are derived as ``seed + s_idx`` for ``s_idx`` in
+    ``range(n_seeds)``. This linear scheme keeps reproduction trivial: the
+    same ``(seed, n_seeds)`` always yields the same sequence of per-instance
+    seeds, and inspecting ``instance.seed`` directly reveals which run it is.
+
+    Note: the same ``(n, instance_seed)`` graph is regenerated for every
+    ``p`` in ``p_layers``, and its brute-force max-cut is recomputed each
+    time. This is wasteful but acceptable for Phase 1 (n_qubits ≤ 20).
+    ``graph_params`` is shared by reference across all returned instances;
+    callers must not mutate it.
+
+    Args:
+        n_qubits: Problem sizes to sweep, e.g. ``[6, 8, 10]``.
+        p_layers: QAOA depths to sweep, e.g. ``[1, 2, 3]``.
+        graph_type: Graph family passed through to ``_generate_graph``.
+        graph_params: Type-specific graph parameters, e.g.
+            ``{'p_edge': 0.5}`` for ``'erdos_renyi'``.
+        n_seeds: Number of seeds per ``(n, p)`` combination. Must be >= 1.
+        seed: Base seed; per-instance seeds are ``seed, seed+1, ...``.
+
+    Returns:
+        A list of ``QAOAInstance`` of length
+        ``len(n_qubits) * len(p_layers) * n_seeds``.
+
+    Raises:
+        ValueError: If ``n_seeds < 1``, or propagated from ``_generate_graph``
+            when ``graph_type`` / ``graph_params`` are invalid.
+
+    Example:
+        >>> instances = generate(
+        ...     n_qubits=[6],
+        ...     p_layers=[1, 2],
+        ...     graph_type='erdos_renyi',
+        ...     graph_params={'p_edge': 0.5},
+        ...     n_seeds=3,
+        ...     seed=42,
+        ... )
+        >>> len(instances)
+        6
+    """
+    if n_seeds < 1:
+        raise ValueError(f"n_seeds must be >= 1, got {n_seeds}")
+
+    instances: list[QAOAInstance] = []
+    for n in n_qubits:
+        for p in p_layers:
+            for s_idx in range(n_seeds):
+                instance_seed = seed + s_idx
+                graph = _generate_graph(graph_type, graph_params, n, instance_seed)
+                circuit = build_qaoa_circuit(graph, n, p)
+                classical_max_cut = _compute_max_cut_brute_force(graph, n)
+                instances.append(QAOAInstance(
+                    circuit=circuit,
+                    graph=graph,
+                    n_qubits=n,
+                    p_layers=p,
+                    graph_type=graph_type,
+                    graph_params=graph_params,
+                    seed=instance_seed,
+                    classical_max_cut=classical_max_cut,
+                ))
+    return instances
